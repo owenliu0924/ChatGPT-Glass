@@ -2,9 +2,9 @@
 // @name         ChatGPT Glass
 // @name:zh-TW   ChatGPT Glass — 自訂外觀
 // @namespace    urn:owen-liu:chatgpt-glass
-// @version      1.3.0
-// @description  Built-in wallpaper, translucent ChatGPT surfaces and an integrated appearance settings page.
-// @description:zh-TW 內建背景與 Owen 預設、毛玻璃；外觀設定整合到 ChatGPT 設定頁，不開浮動視窗。
+// @version      1.4.0
+// @description  Built-in wallpaper, translucent ChatGPT surfaces, glass file viewers/menus and integrated settings.
+// @description:zh-TW 內建背景與 Owen 預設、毛玻璃；補齊檔案卡片、選單與檔案預覽，設定整合到 ChatGPT 設定頁。
 // @author       Owen Liu
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -34,7 +34,7 @@
   if (window.top !== window.self || document.getElementById('owg-launcher-host')) return;
   if (/^\/(?:auth|api|backend-api)(?:\/|$)/.test(location.pathname)) return;
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const SETTINGS_KEY = 'owen.chatgpt-glass.settings.v1';
   const IMAGE_KEY = 'owen.chatgpt-glass.image.v1';
   const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -72,6 +72,7 @@
     "cardOpacity": 56,
     "settingsOpacity": 54,
     "menuOpacity": 82,
+    "viewerOpacity": 58,
     "radius": 22,
     "lowPower": false,
     "showLauncher": false,
@@ -85,7 +86,7 @@
     composerOpacity: [0, 100], headerOpacity: [0, 100], userOpacity: [0, 100],
     assistantOpacity: [0, 100], borderOpacity: [0, 45], radius: [0, 36],
     assistantPadding: [12, 40], assistantGap: [8, 32], assistantRadius: [0, 30],
-    cardOpacity: [0, 100], settingsOpacity: [0, 100], menuOpacity: [40, 100]
+    cardOpacity: [0, 100], settingsOpacity: [0, 100], menuOpacity: [40, 100], viewerOpacity: [0, 100]
   };
   const ENUMS = { source: ['builtin', 'gradient', 'solid', 'local', 'url'], fit: ['cover', 'contain'] };
   const PRESETS = {
@@ -292,6 +293,32 @@ html.owg-active.owg-extra-glass :is([data-owg-surface="settings"], [data-owg-set
 html.owg-active.owg-extra-glass :is([data-owg-surface="menu"], [data-owg-surface="banner"]) {
   background-color: rgb(var(--owg-surface-rgb) / var(--owg-menu-opacity)) !important;
 }
+/* ChatGPT's file/image/code viewer is a separate App Shell detail panel.
+   Clear only its known paint layers, then blur the panel itself.  This avoids
+   the old opaque-black right pane while keeping media/code content untouched. */
+html.owg-active.owg-extra-glass [data-owg-surface="viewer"] {
+  background-color: rgb(var(--owg-surface-rgb) / var(--owg-viewer-opacity)) !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: var(--owg-glass-filter, none) !important;
+  backdrop-filter: var(--owg-glass-filter, none) !important;
+  box-shadow: inset 1px 0 rgb(var(--owg-line-rgb) / var(--owg-border-opacity)) !important;
+}
+html.owg-active.owg-extra-glass [data-owg-surface="viewer"] [data-testid="viewer-header"] {
+  --viewer-header-content-fade-color: rgb(var(--owg-surface-rgb) / var(--owg-viewer-opacity));
+}
+html.owg-active.owg-extra-glass [data-owg-surface="viewer"] [data-testid="viewer-header"] [aria-label="Viewer controls"] {
+  background: rgb(var(--owg-surface-rgb) / max(var(--owg-viewer-opacity), .72)) !important;
+  -webkit-backdrop-filter: var(--owg-glass-filter, none) !important;
+  backdrop-filter: var(--owg-glass-filter, none) !important;
+  box-shadow: 0 0 0 1px rgb(var(--owg-line-rgb) / var(--owg-border-opacity)), 0 4px 18px rgb(0 0 0 / .16) !important;
+}
+html.owg-active.owg-extra-glass :is([data-owg-surface="viewer-clear"], [data-owg-surface="menu-clear"]) {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+/* The fixed global titlebar spans across the detail panel.  When a Viewer is
+   present, don't paint our extra titlebar glass over its own z-ordered header. */
+html.owg-active:has([data-owg-surface="viewer"]) [data-app-shell-titlebar] > .owg-header-glass { display: none !important; }
 /* A file card already inside the reply/composer glass must not blur or dim its
    parent's foreground again. Its own subtle tint still separates the file rows. */
 html.owg-active.owg-extra-glass.owg-assistant-cards [data-owg-surface="assistant"] [data-owg-surface="attachment"],
@@ -315,6 +342,7 @@ html.owg-active.owg-extra-glass [data-owg-surface="composer"] [data-owg-surface=
 @supports (background-color: rgb(from red r g b / .5)) {
   html.owg-active [data-owg-surface="composer-rail"] { background-color: rgb(from var(--app-color-background-elevated-primary-opaque, var(--owg-base)) r g b / var(--owg-composer-opacity)) !important; }
   html.owg-active.owg-extra-glass :is([data-owg-surface="menu"], [data-owg-surface="banner"]) { background-color: rgb(from var(--color-surface-elevated-secondary, var(--owg-base)) r g b / var(--owg-menu-opacity)) !important; }
+  html.owg-active.owg-extra-glass [data-owg-surface="viewer"] { background-color: rgb(from var(--color-surface, var(--owg-base)) r g b / var(--owg-viewer-opacity)) !important; }
 }
 /* Reversible markers for our Settings subpage; native nodes stay in place. */
 [data-owg-native-hidden] { display: none !important; }
@@ -595,9 +623,10 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
       range('assistantGap', '卡片上方間隔', 'px', '與 Worked for／思考狀態分開，底部也保留操作列的空間。'),
       range('assistantRadius', '回覆卡片圓角', 'px'),
       toggleRow('messageGlass', '訊息背景毛玻璃', '套用到我的訊息與啟用中的 AI 卡片。長對話捲動不順時，可單獨關閉；不影響內距。')]),
-    section('其他元件', [toggleRow('extraGlass', '其他卡片與選單毛玻璃', '推薦卡片、可辨識的檔案卡片、原生設定群組、選單與輸入區通知。保留圖示、文字和按鈕配色。'),
+    section('其他元件', [toggleRow('extraGlass', '其他卡片與選單毛玻璃', '推薦卡片、檔案卡片、原生設定群組、選單、輸入區通知與檔案預覽。保留圖片、文字和按鈕配色。'),
       range('cardOpacity', '推薦與檔案卡片不透明度'), range('settingsOpacity', '原生設定群組不透明度'),
-      range('menuOpacity', '選單與通知不透明度', '%', '至少保留 40% 底色，避免選單文字與後方內容混在一起。')])
+      range('menuOpacity', '選單與通知不透明度', '%', '至少保留 40% 底色，避免選單文字與後方內容混在一起。'),
+      range('viewerOpacity', '檔案預覽不透明度', '%', '圖片、文字與程式碼預覽的右側 Viewer 面板。保留原生工具列與關閉按鈕。')])
   );
   const diagnostics = text('p', '', 'about');
   const importInput = element('input', { type: 'file', accept: '.json,application/json', hidden: true });
@@ -722,7 +751,7 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
       '--owg-assistant-padding': `${state.assistantPadding}px`, '--owg-assistant-gap': `${state.assistantGap}px`,
       '--owg-assistant-radius': `${state.assistantRadius}px`
     };
-    for (const key of ['sidebar', 'composer', 'header', 'user', 'assistant', 'card', 'settings', 'menu']) vars[`--owg-${key}-opacity`] = state[`${key}Opacity`] / 100;
+    for (const key of ['sidebar', 'composer', 'header', 'user', 'assistant', 'card', 'settings', 'menu', 'viewer']) vars[`--owg-${key}-opacity`] = state[`${key}Opacity`] / 100;
     for (const [key, value] of Object.entries(vars)) html.style.setProperty(key, String(value));
     html.classList.toggle('owg-active', state.enabled);
     html.classList.toggle('owg-assistant-cards', state.enabled && state.assistantCards);
@@ -991,7 +1020,10 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
   const SIDEBARS = '#stage-slideover-sidebar,#stage-sidebar,#sidebar,[data-testid="sidebar"]';
   const APP_FORMS = 'form[data-chatgpt-composer],form[data-composer-placement],form[data-thread-find-composer]';
   const COMPOSERS = '#composer-background,[data-testid="composer"],[data-testid="composer-container"]';
-  const GUARD = '[role="dialog"],dialog,[role="menu"],pre,code,iframe,[data-owg-owned]';
+  const GUARD = '[role="dialog"],dialog,[role="menu"],[role="listbox"],pre,code,iframe,[data-owg-owned]';
+  const OVERLAYS = '[role="menu"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-radix-popper-content-wrapper] > [data-side],[data-radix-popper-content-wrapper] [role="listbox"]';
+  const HIDDEN_OVERLAY = '[hidden],[inert],[aria-hidden="true"],.hidden,.sf-hidden';
+  const VIEWER_HEADER = '[data-testid="viewer-header"]';
   const APP_MESSAGES = '[data-user-message-bubble],[data-chatgpt-search-unit-key$=":assistant"],[data-content-search-unit-key$=":assistant"]';
   const marks = new Map();
   let adapterKind = 'unrecognised';
@@ -1119,6 +1151,13 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
       for (const row of document.querySelectorAll('[class~="group/resource-row"]')) {
         surface(row.closest(resourceChrome), 'attachment');
       }
+      // Current attachment cards use group/resource-card and a bg-surface-elevated
+      // outer shell.  This is distinct from the tiny inline file citation chips.
+      for (const resource of document.querySelectorAll('[class~="group/resource-card"]')) {
+        // Require an actual painted shell, not an arbitrary rounded ancestor.
+        const card = resource.closest('.bg-surface-elevated,.bg-surface-elevated-secondary');
+        if (card && !card.matches('img,video,canvas') && !card.querySelector('img,video,canvas')) surface(card, 'attachment');
+      }
       for (const card of document.querySelectorAll('[data-testid="file-attachment"],[data-testid="file-card"],[data-file-attachment]')) surface(card, 'attachment');
       // User-upload cards vary by rollout. Only touch a known surface token in a
       // USER attachment area, outside the message bubble; never image thumbnails.
@@ -1133,10 +1172,29 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
         }
       }
       for (const banner of document.querySelectorAll('main [class^="ComposerBannerPortal-"] > .contents > [role="status"],main [class*=" ComposerBannerPortal-"] > .contents > [role="status"]')) surface(banner, 'banner');
-      // Menus are excluded from structural clearing but explicitly allowed as
-      // glass surfaces. Keep Radix placement, dimensions, focus and item states.
-      for (const menu of document.querySelectorAll('[role="menu"][data-radix-menu-content],[data-slot="popover-content"],[data-slot="dropdown-menu-content"]')) {
-        if (menu instanceof HTMLElement && !menu.closest(OWN_SELECTOR) && !menu.closest('pre,code,iframe')) next.set(menu, 'menu');
+      // Popper contents may wrap a semantic role=menu/listbox. Paint only the
+      // outermost recognised popup, not its positioning wrapper or menu items.
+      // An inline listbox is NOT a popup and must retain its native appearance.
+      const overlays = [...document.querySelectorAll(OVERLAYS)].filter(node =>
+        node instanceof HTMLElement && !node.closest(OWN_SELECTOR) &&
+        !node.closest('pre,code,iframe') && !node.closest(HIDDEN_OVERLAY));
+      for (const menu of overlays.filter(node => !overlays.some(parent => parent !== node && parent.contains(node)))) {
+        next.set(menu, 'menu');
+        for (const inner of overlays.filter(node => node !== menu && menu.contains(node))) next.set(inner, 'menu-clear');
+      }
+      // Only adapt the known App Shell viewer, never a document rendered in an
+      // iframe, a media pixel surface, or an unrelated inspector/right panel.
+      for (const viewerHeader of document.querySelectorAll(VIEWER_HEADER)) {
+        if (viewerHeader.closest(HIDDEN_OVERLAY)) continue;
+        const viewer = viewerHeader.closest('[data-app-shell-focus-area="right-panel"]') || viewerHeader.closest('aside');
+        if (!(viewer instanceof HTMLElement) || viewer.closest(OWN_SELECTOR) || viewer.closest('pre,code,iframe')) continue;
+        next.set(viewer, 'viewer');
+        for (const layer of viewer.querySelectorAll('[class~="bg-surface"],[class*="bg-[var(--app-shell-panel-background"]')) {
+          if (!(layer instanceof HTMLElement) || layer.closest('pre,code,iframe,[data-owg-owned]') || layer.matches('img,video,canvas')) continue;
+          // Gate clearing by extraGlass as well as enabled. Switching off just
+          // the extra surfaces must restore the original opaque preview too.
+          if (!next.has(layer) || next.get(layer) === 'clear') next.set(layer, 'viewer-clear');
+        }
       }
       flushMarks(next);
       integrateNativeSettings();
@@ -1183,16 +1241,17 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
       ['推薦卡片', document.querySelector('[data-owg-surface="suggestion"]')],
       ['檔案卡片', document.querySelector('[data-owg-surface="attachment"]')],
       ['原生設定群組', document.querySelector('[data-owg-surface="settings"]')],
-      ['選單', document.querySelector('[data-owg-surface="menu"]')]
+      ['選單', document.querySelector('[data-owg-surface="menu"]')],
+      ['檔案預覽', document.querySelector('[data-owg-surface="viewer"]')]
     ].map(([label, node]) => `${label} ${node ? '✓' : '—'}`).join('　');
     const name = { 'app-shell': 'App Shell（新版）', legacy: '傳統介面', unrecognised: '尚未辨識' }[adapterKind];
     diagnostics.textContent = `版面：${name}\n${found}\n設定入口：${!state.integrateSettings ? '已關閉' : nativeSettingsDetected ? '原生樣式項目' : '尚未辨識'}。${panelOpen ? '目前顯示整合式設定頁，沒有浮動視窗。' : ''}設定頁沒有訊息／輸入框是正常的。`;
   }
-  const WATCH = 'main,#app-shell-sidebar,[data-app-shell-titlebar],form[data-chatgpt-composer],form[data-composer-placement],form[data-thread-find-composer],[data-composer-surface-variant],[data-composer-body],[data-chatgpt-selection-message-id],[data-composer-rail],[data-work-onboarding-carousel],article,[class~="group/resource-row"],[class~="@container/settings-row"],[data-testid="file-attachment"],[data-testid="file-card"],[data-file-attachment],[data-composer-attachments],[role="menu"],[data-slot="popover-content"],[role="status"],' + APP_MESSAGES + ',[data-settings-panel-slug],[class~="group/settings"],#prompt-textarea,[data-message-author-role],' + SIDEBARS + ',[role="dialog"],[role="tab"]';
+  const WATCH = 'main,#app-shell-sidebar,[data-app-shell-titlebar],form[data-chatgpt-composer],form[data-composer-placement],form[data-thread-find-composer],[data-composer-surface-variant],[data-composer-body],[data-chatgpt-selection-message-id],[data-composer-rail],[data-work-onboarding-carousel],article,[class~="group/resource-row"],[class~="group/resource-card"],[class~="@container/settings-row"],[data-testid="file-attachment"],[data-testid="file-card"],[data-file-attachment],[data-composer-attachments],[role="menu"],[role="listbox"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-radix-popper-content-wrapper],[data-testid="viewer-header"],[role="status"],' + APP_MESSAGES + ',[data-settings-panel-slug],[class~="group/settings"],#prompt-textarea,[data-message-author-role],' + SIDEBARS + ',[role="dialog"],[role="tab"]';
   function relevant(node) { return node instanceof Element && !node.matches(OWN_SELECTOR) && (node.matches(WATCH) || !!node.querySelector(WATCH)); }
   const treeObserver = new MutationObserver(records => {
     if (records.some(record => !record.target.closest?.(OWN_SELECTOR) && (
-      record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes].some(relevant) ||
+      (record.type === 'attributes' && (relevant(record.target) || marks.has(record.target))) || [...record.addedNodes, ...record.removedNodes].some(relevant) ||
       (record.target.closest?.('[data-content-search-unit-key$=":user"],[data-chatgpt-search-unit-key$=":user"],[data-message-author-role="user"],[data-composer-attachments]') &&
        [...record.addedNodes, ...record.removedNodes].some(n => n instanceof Element && n.matches('div,button,a')))
 
@@ -1200,7 +1259,7 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
   });
   // Plain streaming text/spans do not rescan the document. No layout reads in this observer.
   treeObserver.observe(document.body, { childList: true, subtree: true, attributes: true,
-    attributeFilter: ['data-composer-surface-variant', 'data-composer-utility-bar-variant', 'data-settings-panel-slug', 'data-app-shell-header-layout', 'aria-current'] });
+    attributeFilter: ['data-composer-surface-variant', 'data-composer-utility-bar-variant', 'data-settings-panel-slug', 'data-app-shell-header-layout', 'aria-current', 'role', 'data-state', 'data-slot', 'hidden', 'aria-hidden', 'inert', 'data-app-shell-focus-area'] });
   let themeWasDark = isDark();
   const themeObserver = new MutationObserver(() => {
     const dark = isDark(); if (dark !== themeWasDark) { themeWasDark = dark; applyAppearance(); }
