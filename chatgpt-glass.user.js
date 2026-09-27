@@ -2,7 +2,7 @@
 // @name         ChatGPT Glass
 // @name:zh-TW   ChatGPT Glass — 自訂外觀
 // @namespace    urn:owen-liu:chatgpt-glass
-// @version      1.4.1
+// @version      1.4.2
 // @description  Built-in wallpaper, translucent ChatGPT surfaces, glass file viewers/menus and integrated settings.
 // @description:zh-TW 內建背景與 Owen 預設、毛玻璃；補齊檔案卡片、選單與檔案預覽，設定整合到 ChatGPT 設定頁。
 // @author       Owen Liu
@@ -34,7 +34,7 @@
   if (window.top !== window.self || document.getElementById('owg-launcher-host')) return;
   if (/^\/(?:auth|api|backend-api)(?:\/|$)/.test(location.pathname)) return;
 
-  const VERSION = '1.4.1';
+  const VERSION = '1.4.2';
   const SETTINGS_KEY = 'owen.chatgpt-glass.settings.v1';
   const IMAGE_KEY = 'owen.chatgpt-glass.image.v1';
   const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -277,19 +277,10 @@ html.owg-active [data-owg-surface="composer-rail"] {
   backdrop-filter: var(--owg-glass-filter, none) !important;
 }
 /* ChatGPT added a Cookie preferences footer as a normal flex child on
-   2026-09-27. It steals height from the home surface and shifts the centered
-   composer upward. Keep the native button in its original bottom-center spot,
-   but remove its wrapper from the flex sizing calculation. */
+   2026-09-27. It both steals height from the home surface and visually collides
+   with the composer, so hide the footer entirely while ChatGPT Glass is active. */
 html.owg-active [data-owg-surface="cookie-footer"] {
-  position: absolute !important;
-  inset-inline: 0 !important;
-  bottom: 0 !important;
-  width: 100% !important;
-  z-index: 20 !important;
-  pointer-events: none !important;
-}
-html.owg-active [data-owg-surface="cookie-footer"] > button {
-  pointer-events: auto !important;
+  display: none !important;
 }
 /* Extra surfaces are opt-out. Do not change every bg-* token, button, or SVG. */
 html.owg-active.owg-extra-glass :is([data-owg-surface="suggestion"], [data-owg-surface="attachment"], [data-owg-surface="settings"], [data-owg-surface="menu"], [data-owg-surface="banner"], [data-owg-settings-card] .owg-settings-row) {
