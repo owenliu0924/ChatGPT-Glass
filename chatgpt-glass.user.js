@@ -2,7 +2,7 @@
 // @name         ChatGPT Glass
 // @name:zh-TW   ChatGPT Glass — 自訂外觀
 // @namespace    urn:owen-liu:chatgpt-glass
-// @version      1.4.0
+// @version      1.4.1
 // @description  Built-in wallpaper, translucent ChatGPT surfaces, glass file viewers/menus and integrated settings.
 // @description:zh-TW 內建背景與 Owen 預設、毛玻璃；補齊檔案卡片、選單與檔案預覽，設定整合到 ChatGPT 設定頁。
 // @author       Owen Liu
@@ -34,7 +34,7 @@
   if (window.top !== window.self || document.getElementById('owg-launcher-host')) return;
   if (/^\/(?:auth|api|backend-api)(?:\/|$)/.test(location.pathname)) return;
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.4.1';
   const SETTINGS_KEY = 'owen.chatgpt-glass.settings.v1';
   const IMAGE_KEY = 'owen.chatgpt-glass.image.v1';
   const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -275,6 +275,21 @@ html.owg-active [data-owg-surface="composer-rail"] {
   background-color: rgb(var(--owg-surface-rgb) / var(--owg-composer-opacity)) !important;
   -webkit-backdrop-filter: var(--owg-glass-filter, none) !important;
   backdrop-filter: var(--owg-glass-filter, none) !important;
+}
+/* ChatGPT added a Cookie preferences footer as a normal flex child on
+   2026-09-27. It steals height from the home surface and shifts the centered
+   composer upward. Keep the native button in its original bottom-center spot,
+   but remove its wrapper from the flex sizing calculation. */
+html.owg-active [data-owg-surface="cookie-footer"] {
+  position: absolute !important;
+  inset-inline: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  z-index: 20 !important;
+  pointer-events: none !important;
+}
+html.owg-active [data-owg-surface="cookie-footer"] > button {
+  pointer-events: auto !important;
 }
 /* Extra surfaces are opt-out. Do not change every bg-* token, button, or SVG. */
 html.owg-active.owg-extra-glass :is([data-owg-surface="suggestion"], [data-owg-surface="attachment"], [data-owg-surface="settings"], [data-owg-surface="menu"], [data-owg-surface="banner"], [data-owg-settings-card] .owg-settings-row) {
@@ -1024,6 +1039,7 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
   const OVERLAYS = '[role="menu"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-radix-popper-content-wrapper] > [data-side],[data-radix-popper-content-wrapper] [role="listbox"]';
   const HIDDEN_OVERLAY = '[hidden],[inert],[aria-hidden="true"],.hidden,.sf-hidden';
   const VIEWER_HEADER = '[data-testid="viewer-header"]';
+  const COOKIE_FOOTER = '[data-app-shell-frame="true"] > div.flex.w-full.shrink-0.justify-center.p-4';
   const APP_MESSAGES = '[data-user-message-bubble],[data-chatgpt-search-unit-key$=":assistant"],[data-content-search-unit-key$=":assistant"]';
   const marks = new Map();
   let adapterKind = 'unrecognised';
@@ -1112,6 +1128,16 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
         for (const unit of document.querySelectorAll('[data-chatgpt-search-unit-key$=":assistant"],[data-content-search-unit-key$=":assistant"]')) {
           const response = unit.querySelector('[data-chatgpt-selection-message-id]');
           if (response) surface(response, 'assistant');
+        }
+        // The cookie control is now a direct child of the app-shell frame. The
+        // following empty shrink-0 spacer makes this structural match specific
+        // enough without depending on locale text or hashed CSS-module names.
+        for (const footer of document.querySelectorAll(COOKIE_FOOTER)) {
+          const control = footer.firstElementChild;
+          const spacer = footer.nextElementSibling;
+          if (footer.childElementCount !== 1 || !(control instanceof HTMLButtonElement) ||
+              !(spacer instanceof HTMLElement) || !spacer.matches('div.w-full.shrink-0')) continue;
+          surface(footer, 'cookie-footer');
         }
       } else {
         // Conservative compatibility with older ChatGPT. Unknown pages are left alone.
@@ -1247,7 +1273,7 @@ input[type="color"] { appearance: none; padding: 3px; border: 1px solid var(--g-
     const name = { 'app-shell': 'App Shell（新版）', legacy: '傳統介面', unrecognised: '尚未辨識' }[adapterKind];
     diagnostics.textContent = `版面：${name}\n${found}\n設定入口：${!state.integrateSettings ? '已關閉' : nativeSettingsDetected ? '原生樣式項目' : '尚未辨識'}。${panelOpen ? '目前顯示整合式設定頁，沒有浮動視窗。' : ''}設定頁沒有訊息／輸入框是正常的。`;
   }
-  const WATCH = 'main,#app-shell-sidebar,[data-app-shell-titlebar],form[data-chatgpt-composer],form[data-composer-placement],form[data-thread-find-composer],[data-composer-surface-variant],[data-composer-body],[data-chatgpt-selection-message-id],[data-composer-rail],[data-work-onboarding-carousel],article,[class~="group/resource-row"],[class~="group/resource-card"],[class~="@container/settings-row"],[data-testid="file-attachment"],[data-testid="file-card"],[data-file-attachment],[data-composer-attachments],[role="menu"],[role="listbox"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-radix-popper-content-wrapper],[data-testid="viewer-header"],[role="status"],' + APP_MESSAGES + ',[data-settings-panel-slug],[class~="group/settings"],#prompt-textarea,[data-message-author-role],' + SIDEBARS + ',[role="dialog"],[role="tab"]';
+  const WATCH = 'main,#app-shell-sidebar,[data-app-shell-titlebar],form[data-chatgpt-composer],form[data-composer-placement],form[data-thread-find-composer],[data-composer-surface-variant],[data-composer-body],[data-chatgpt-selection-message-id],[data-composer-rail],[data-work-onboarding-carousel],article,[class~="group/resource-row"],[class~="group/resource-card"],[class~="@container/settings-row"],[data-testid="file-attachment"],[data-testid="file-card"],[data-file-attachment],[data-composer-attachments],[role="menu"],[role="listbox"],[data-slot="popover-content"],[data-slot="dropdown-menu-content"],[data-radix-popper-content-wrapper],[data-testid="viewer-header"],[role="status"],' + COOKIE_FOOTER + ',' + APP_MESSAGES + ',[data-settings-panel-slug],[class~="group/settings"],#prompt-textarea,[data-message-author-role],' + SIDEBARS + ',[role="dialog"],[role="tab"]';
   function relevant(node) { return node instanceof Element && !node.matches(OWN_SELECTOR) && (node.matches(WATCH) || !!node.querySelector(WATCH)); }
   const treeObserver = new MutationObserver(records => {
     if (records.some(record => !record.target.closest?.(OWN_SELECTOR) && (
